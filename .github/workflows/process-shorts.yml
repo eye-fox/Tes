@@ -6,7 +6,6 @@ on:
       youtube_urls:
         description: 'YouTube URLs (one per line)'
         required: true
-        type: string
         default: |
           https://www.youtube.com/watch?v=example1
           https://www.youtube.com/watch?v=example2
@@ -32,20 +31,15 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install requests pillow
     
     - name: Create URL file
       run: |
-        # Create url.txt from workflow input
-        echo "${{ inputs.youtube_urls }}" > url.txt
+        echo "${{ github.event.inputs.youtube_urls }}" > url.txt
         echo "URLs to process:"
         cat url.txt
     
     - name: Run YouTube Shorts Processor
-      env:
-        # You might want to use GitHub Secrets for API keys in production
-        # FACE_API_KEY: ${{ secrets.FACE_API_KEY }}
-        # FACE_API_SECRET: ${{ secrets.FACE_API_SECRET }}
       run: |
         echo "Starting processing..."
         python shorts.py
@@ -58,7 +52,3 @@ jobs:
           *.mp4
           hasil_*.json
         retention-days: 7
-    
-    - name: Clean up
-      run: |
-        rm -f url.txt *.mp4 hasil_*.json
