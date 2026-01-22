@@ -8,6 +8,14 @@ on:
         required: true
         default: |
           
+      api_key:
+        description: 'Face++ API Key'
+        required: true
+        
+      api_secret:
+        description: 'Face++ API Secret'
+        required: true
+
 jobs:
   process-shorts:
     runs-on: ubuntu-latest
@@ -34,12 +42,20 @@ jobs:
     - name: Create URL file
       run: |
         echo "${{ github.event.inputs.youtube_urls }}" > url.txt
-        echo "URLs to process:"
-        cat url.txt
+        echo "URL file created"
+    
+    - name: Create API credential files
+      run: |
+        # Create api_key.txt
+        echo "${{ github.event.inputs.api_key }}" > api_key.txt
+        
+        # Create api_secret.txt
+        echo "${{ github.event.inputs.api_secret }}" > api_secret.txt
+        
+        echo "API credential files created"
     
     - name: Run YouTube Shorts Processor
       run: |
-        echo "Starting processing..."
         python shorts.py
     
     - name: Upload processed videos
