@@ -7,9 +7,7 @@ on:
         description: 'YouTube URLs (one per line)'
         required: true
         default: |
-          https://www.youtube.com/watch?v=example1
-          https://www.youtube.com/watch?v=example2
-
+          
 jobs:
   process-shorts:
     runs-on: ubuntu-latest
