@@ -13,7 +13,6 @@ from pathlib import Path
 from PIL import Image
 from typing import List, Tuple, Dict, Any
 
-# mulai
 def extract_youtube_id(url):
     regex = r'(?:v=|\/)([0-9A-Za-z_-]{11}).*'
     match = re.search(regex, url)
@@ -771,16 +770,35 @@ def read_youtube_urls_from_file():
     
     return valid_urls
 
+def read_api_credentials():
+    try:
+        with open('api_key.txt', 'r', encoding='utf-8') as f:
+            api_key = f.read().strip()
+    except FileNotFoundError:
+        print("Error: File api_key.txt tidak ditemukan")
+        sys.exit(1)
+    try:
+        with open('api_secret.txt', 'r', encoding='utf-8') as f:
+            api_secret = f.read().strip()
+    except FileNotFoundError:
+        print("Error: File api_secret.txt tidak ditemukan")
+        sys.exit(1)
+    if not api_key:
+        print("Error: API Key kosong")
+        sys.exit(1)
+    if not api_secret:
+        print("Error: API Secret kosong")
+        sys.exit(1)
+    return api_key, api_secret
+
 def main_pipeline():
     print("=" * 60)
     print("YOUTUBE SHORTS PROCESSING PIPELINE")
     print("=" * 60)
-    
     API_KEY = "m08pEupw2UG4SaYq62oJoGlM_uHttAVD"
     API_SECRET = "xBY3hvMsEoCxMEmno6eeMrDKXZPe1mkd"
-    
+    API_KEY, API_SECRET = read_api_credentials()
     youtube_urls = read_youtube_urls_from_file()
-    
     with tempfile.TemporaryDirectory() as temp_dir:
         print(f"Direktori sementara: {temp_dir}")
         
