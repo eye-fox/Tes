@@ -822,14 +822,14 @@ def main_pipeline():
                 for short in shorts_data['shorts']:
                     if ('viralityScore' in short and 
                         isinstance(short['viralityScore'], (int, float)) and 
-                        short['viralityScore'] >= 70):
+                        short['viralityScore'] >= 50):
                         filtered_shorts.append(short)
             
             if not filtered_shorts:
-                print("Tidak ada shorts dengan viralityScore ≥ 70")
+                print("Tidak ada shorts dengan viralityScore ≥ 50")
                 continue
             
-            print(f"Ditemukan {len(filtered_shorts)} shorts (viralityScore ≥ 70)")
+            print(f"Ditemukan {len(filtered_shorts)} shorts (viralityScore ≥ 50)")
             short_ids = [short.get('_id') for short in filtered_shorts if short.get('_id')]
             
             if short_ids:
