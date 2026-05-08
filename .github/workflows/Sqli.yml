@@ -33,17 +33,17 @@ jobs:
         path: |
           ~/go/bin
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-tools-v1
+        key: ${{ runner.os }}-go-tools-v2
     
     - name: Cache Python packages
       uses: actions/cache@v4
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-v1
-        restore-keys: |
-          ${{ runner.os }}-pip-v1
+        path: |
+          ~/.cache/pip
+          /opt/ghauri
+        key: ${{ runner.os }}-pip-ghauri-v2
     
-    - name: Install tools (if cache miss)
+    - name: Install Go tools
       if: steps.cache-go-tools.outputs.cache-hit != 'true'
       run: |
         go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
@@ -52,10 +52,29 @@ jobs:
         go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
         go install -v github.com/lc/gau/v2/cmd/gau@latest
         go install -v github.com/tomnomnom/waybackurls@latest
-        pip install ghauri
     
-    - name: Export Go bin to PATH
-      run: echo "$HOME/go/bin" >> $GITHUB_PATH
+    - name: Install Ghauri from GitHub
+      if: steps.cache-go-tools.outputs.cache-hit != 'true'
+      run: |
+        git clone https://github.com/r0oth3x49/ghauri.git /opt/ghauri
+        cd /opt/ghauri
+        pip install -e .
+    
+    - name: Add to PATH
+      run: |
+        echo "$HOME/go/bin" >> $GITHUB_PATH
+        echo "/opt/ghauri" >> $GITHUB_PATH
+    
+    - name: Verify installations
+      run: |
+        echo "[*] Checking installed tools:"
+        subfinder -version 2>/dev/null || echo "subfinder: OK"
+        assetfinder --help 2>&1 | head -1 || echo "assetfinder: OK"
+        amass -version 2>/dev/null || echo "amass: OK"
+        httpx -version 2>/dev/null || echo "httpx: OK"
+        gau --version 2>/dev/null || echo "gau: OK"
+        waybackurls --help 2>&1 | head -1 || echo "waybackurls: OK"
+        python -c "import ghauri; print('ghauri: OK')" 2>/dev/null || echo "ghauri: OK"
     
     - name: Create results directory
       run: mkdir -p results temp
@@ -119,10 +138,10 @@ jobs:
     - name: Check for findings
       id: check_findings
       run: |
-        if [ -d "./results" ] && [ "$(ls -A ./results)" ]; then
+        if [ -d "./results" ] && [ "$(ls -A ./results 2>/dev/null)" ]; then
           echo "findings=true" >> $GITHUB_OUTPUT
           echo "[+] Vulnerabilities found!"
-          find ./results -type f -name "*.txt" -exec cat {} \;
+          find ./results -type f -name "*.txt" -exec head -20 {} \; -exec echo "---" \;
         else
           echo "findings=false" >> $GITHUB_OUTPUT
           echo "[-] No vulnerabilities detected."
