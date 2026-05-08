@@ -33,7 +33,7 @@ jobs:
         path: |
           ~/go/bin
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-tools-v3
+        key: ${{ runner.os }}-go-tools-v4
     
     - name: Cache Python packages
       uses: actions/cache@v4
@@ -41,14 +41,13 @@ jobs:
         path: |
           ~/.cache/pip
           /opt/ghauri
-        key: ${{ runner.os }}-pip-ghauri-v3
+        key: ${{ runner.os }}-pip-ghauri-v4
     
     - name: Install Go tools
       if: steps.cache-go-tools.outputs.cache-hit != 'true'
       run: |
         go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
         go install -v github.com/tomnomnom/assetfinder@latest
-        go install -v github.com/owasp-amass/amass/v4/...@master
         go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
         go install -v github.com/lc/gau/v2/cmd/gau@latest
         go install -v github.com/tomnomnom/waybackurls@latest
@@ -66,7 +65,7 @@ jobs:
         echo "/opt/ghauri" >> $GITHUB_PATH
     
     - name: Create directories
-      run: mkdir -p results temp subdomain_results url_results
+      run: mkdir -p results temp
     
     - name: Parallel subdomain enumeration
       run: |
@@ -80,24 +79,18 @@ jobs:
           assetfinder --subs-only ${{ inputs.domain }} > temp/assetfinder.txt 2>/dev/null
         }
         
-        run_amass() {
-          amass enum -passive -d ${{ inputs.domain }} -o temp/amass.txt 2>/dev/null
-        }
-        
         run_assetfinder &
         run_subfinder &
-        run_amass &
         
         wait
         
         echo "[*] Subdomain enumeration completed"
         echo "[*] Subfinder: $(wc -l < temp/subfinder.txt 2>/dev/null || echo 0) domains"
         echo "[*] Assetfinder: $(wc -l < temp/assetfinder.txt 2>/dev/null || echo 0) domains"
-        echo "[*] Amass: $(wc -l < temp/amass.txt 2>/dev/null || echo 0) domains"
     
     - name: Merge and sort subdomains
       run: |
-        cat temp/subfinder.txt temp/assetfinder.txt temp/amass.txt 2>/dev/null | \
+        cat temp/subfinder.txt temp/assetfinder.txt 2>/dev/null | \
         sort -u > temp/subs_sorted.txt
         echo "[*] Total unique subdomains: $(wc -l < temp/subs_sorted.txt)"
         echo "${{ inputs.domain }}" >> temp/subs_with_main.txt
@@ -110,14 +103,12 @@ jobs:
         cat temp/all_domains.txt | httpx -silent -threads 100 -status-code -content-length -title -o temp/live_subs.txt
         cut -d' ' -f1 temp/live_subs.txt > temp/live_domains.txt
         echo "[*] Live domains: $(wc -l < temp/live_domains.txt)"
-        cat temp/live_domains.txt
     
     - name: Parallel URL extraction
       run: |
         echo "[*] Starting parallel URL extraction on live domains..."
         
         extract_gau() {
-          echo "[*] GAU started"
           while read domain; do
             gau --subs $domain >> temp/gau_urls.txt 2>/dev/null
           done < temp/live_domains.txt
@@ -125,7 +116,6 @@ jobs:
         }
         
         extract_wayback() {
-          echo "[*] Waybackurls started"
           while read domain; do
             echo $domain | waybackurls >> temp/wayback_urls.txt 2>/dev/null
           done < temp/live_domains.txt
@@ -136,8 +126,6 @@ jobs:
         extract_wayback &
         
         wait
-        
-        echo "[*] Both URL extractors completed"
     
     - name: Merge and deduplicate URLs
       run: |
@@ -150,7 +138,6 @@ jobs:
         chmod +x url-filter.sh
         ./url-filter.sh temp/urls_raw.txt temp/param_urls.txt
         echo "[*] URLs with parameters: $(wc -l < temp/param_urls.txt)"
-        head -20 temp/param_urls.txt
     
     - name: Run Ghauri SQL injection scan
       if: success() && hashFiles('temp/param_urls.txt')
@@ -170,35 +157,11 @@ jobs:
           echo "[!] No URLs with parameters found. Skipping Ghauri."
         fi
     
-    - name: Check for findings
-      id: check_findings
-      run: |
-        if [ -d "./results" ] && [ "$(ls -A ./results 2>/dev/null)" ]; then
-          echo "findings=true" >> $GITHUB_OUTPUT
-          echo "[+] Vulnerabilities found!"
-          find ./results -type f -name "*.txt" -exec head -20 {} \; -exec echo "---" \;
-        else
-          echo "findings=false" >> $GITHUB_OUTPUT
-          echo "[-] No vulnerabilities detected."
-        fi
-    
-    - name: Upload artifacts
-      if: steps.check_findings.outputs.findings == 'true'
+    - name: Upload Ghauri results
+      if: success() && hashFiles('./results/')
       uses: actions/upload-artifact@v4
       with:
-        name: sqli-results-${{ github.run_id }}
+        name: ghauri-results-${{ github.run_id }}
         path: ./results/
         compression-level: 6
         retention-days: 30
-    
-    - name: Upload all results (for debugging)
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: full-recon-results-${{ github.run_id }}
-        path: |
-          temp/all_domains.txt
-          temp/live_domains.txt
-          temp/param_urls.txt
-        compression-level: 6
-        retention-days: 7
