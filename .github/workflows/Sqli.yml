@@ -1,0 +1,138 @@
+name: Subdomain Enumeration & SQLi Scanner
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: "Target domain (example: example.com)"
+        required: true
+        type: string
+
+jobs:
+  recon:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+    
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Cache Go tools
+      id: cache-go-tools
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/go/bin
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-tools-v1
+    
+    - name: Cache Python packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-v1
+        restore-keys: |
+          ${{ runner.os }}-pip-v1
+    
+    - name: Install tools (if cache miss)
+      if: steps.cache-go-tools.outputs.cache-hit != 'true'
+      run: |
+        go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+        go install -v github.com/tomnomnom/assetfinder@latest
+        go install -v github.com/owasp-amass/amass/v4/...@master
+        go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+        go install -v github.com/lc/gau/v2/cmd/gau@latest
+        go install -v github.com/tomnomnom/waybackurls@latest
+        pip install ghauri
+    
+    - name: Export Go bin to PATH
+      run: echo "$HOME/go/bin" >> $GITHUB_PATH
+    
+    - name: Create results directory
+      run: mkdir -p results temp
+    
+    - name: Subdomain enumeration
+      run: |
+        echo "[*] Running subfinder..."
+        subfinder -d ${{ inputs.domain }} -silent >> temp/subs_raw.txt
+        echo "[*] Running assetfinder..."
+        assetfinder --subs-only ${{ inputs.domain }} >> temp/subs_raw.txt
+        echo "[*] Running amass..."
+        amass enum -passive -d ${{ inputs.domain }} -o temp/amass.txt
+        cat temp/amass.txt >> temp/subs_raw.txt
+        sort -u temp/subs_raw.txt > temp/subs_sorted.txt
+        echo "[*] Total unique subdomains: $(wc -l < temp/subs_sorted.txt)"
+    
+    - name: Probe live subdomains with httpx
+      run: |
+        cat temp/subs_sorted.txt | httpx -silent -threads 100 -status-code -content-length -title -o temp/live_subs.txt
+        cut -d' ' -f1 temp/live_subs.txt > temp/live_domains.txt
+        echo "[*] Live subdomains: $(wc -l < temp/live_domains.txt)"
+        cat temp/live_domains.txt
+    
+    - name: Extract URLs with gau and waybackurls
+      run: |
+        echo "[*] Running gau..."
+        while read domain; do
+          gau --subs $domain >> temp/urls_raw.txt 2>/dev/null
+        done < temp/live_domains.txt
+        echo "[*] Running waybackurls..."
+        while read domain; do
+          echo $domain | waybackurls >> temp/urls_raw.txt 2>/dev/null
+        done < temp/live_domains.txt
+        sort -u temp/urls_raw.txt > temp/urls_dedupe.txt
+        echo "[*] Total unique URLs: $(wc -l < temp/urls_dedupe.txt)"
+    
+    - name: Filter URLs with parameters
+      run: |
+        chmod +x url-filter.sh
+        ./url-filter.sh temp/urls_dedupe.txt temp/param_urls.txt
+        echo "[*] URLs with parameters: $(wc -l < temp/param_urls.txt)"
+    
+    - name: Run Ghauri SQL injection scan
+      if: success() && hashFiles('temp/param_urls.txt')
+      run: |
+        if [ -s temp/param_urls.txt ]; then
+          ghauri -m temp/param_urls.txt \
+            --batch \
+            --level=3 \
+            --technique=BEUSTQ \
+            --threads=5 \
+            --delay=2 \
+            --time-sec=15 \
+            --random-agent \
+            --flush-session \
+            --output-dir=./results
+        else
+          echo "[!] No URLs with parameters found. Skipping Ghauri."
+        fi
+    
+    - name: Check for findings
+      id: check_findings
+      run: |
+        if [ -d "./results" ] && [ "$(ls -A ./results)" ]; then
+          echo "findings=true" >> $GITHUB_OUTPUT
+          echo "[+] Vulnerabilities found!"
+          find ./results -type f -name "*.txt" -exec cat {} \;
+        else
+          echo "findings=false" >> $GITHUB_OUTPUT
+          echo "[-] No vulnerabilities detected."
+        fi
+    
+    - name: Upload artifacts
+      if: steps.check_findings.outputs.findings == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: sqli-results-${{ github.run_id }}
+        path: ./results/
+        compression-level: 6
+        retention-days: 30
