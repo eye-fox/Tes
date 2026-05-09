@@ -65,7 +65,7 @@ if [ "$PARAM_COUNT" -gt 0 ]; then
         --time-sec=15 \
         --random-agent \
         --flush-session \
-        --output-dir=./results
+    cd ..
 fi
 
 rm -rf temp
