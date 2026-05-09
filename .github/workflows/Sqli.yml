@@ -35,14 +35,6 @@ jobs:
           ~/go/pkg/mod
         key: ${{ runner.os }}-go-tools-v4
     
-    - name: Cache Python packages
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/pip
-          /opt/ghauri
-        key: ${{ runner.os }}-pip-ghauri-v4
-    
     - name: Install Go tools
       if: steps.cache-go-tools.outputs.cache-hit != 'true'
       run: |
@@ -52,7 +44,7 @@ jobs:
         go install -v github.com/lc/gau/v2/cmd/gau@latest
         go install -v github.com/tomnomnom/waybackurls@latest
     
-    - name: Install Ghauri from GitHub
+    - name: Install Ghauri
       if: steps.cache-go-tools.outputs.cache-hit != 'true'
       run: |
         git clone https://github.com/r0oth3x49/ghauri.git /opt/ghauri
@@ -64,98 +56,10 @@ jobs:
         echo "$HOME/go/bin" >> $GITHUB_PATH
         echo "/opt/ghauri" >> $GITHUB_PATH
     
-    - name: Create directories
-      run: mkdir -p results temp
-    
-    - name: Parallel subdomain enumeration
+    - name: Run scanner
       run: |
-        echo "[*] Starting parallel subdomain enumeration..."
-        
-        run_subfinder() {
-          subfinder -d ${{ inputs.domain }} -silent > temp/subfinder.txt 2>/dev/null
-        }
-        
-        run_assetfinder() {
-          assetfinder --subs-only ${{ inputs.domain }} > temp/assetfinder.txt 2>/dev/null
-        }
-        
-        run_assetfinder &
-        run_subfinder &
-        
-        wait
-        
-        echo "[*] Subdomain enumeration completed"
-        echo "[*] Subfinder: $(wc -l < temp/subfinder.txt 2>/dev/null || echo 0) domains"
-        echo "[*] Assetfinder: $(wc -l < temp/assetfinder.txt 2>/dev/null || echo 0) domains"
-    
-    - name: Merge and sort subdomains
-      run: |
-        cat temp/subfinder.txt temp/assetfinder.txt 2>/dev/null | \
-        sort -u > temp/subs_sorted.txt
-        echo "[*] Total unique subdomains: $(wc -l < temp/subs_sorted.txt)"
-        echo "${{ inputs.domain }}" >> temp/subs_with_main.txt
-        cat temp/subs_sorted.txt >> temp/subs_with_main.txt
-        sort -u temp/subs_with_main.txt > temp/all_domains.txt
-        echo "[*] Total domains (including main): $(wc -l < temp/all_domains.txt)"
-    
-    - name: Probe live domains with httpx
-      run: |
-        cat temp/all_domains.txt | httpx -silent -threads 100 -status-code -content-length -title -o temp/live_subs.txt
-        cut -d' ' -f1 temp/live_subs.txt > temp/live_domains.txt
-        echo "[*] Live domains: $(wc -l < temp/live_domains.txt)"
-    
-    - name: Parallel URL extraction
-      run: |
-        echo "[*] Starting parallel URL extraction on live domains..."
-        
-        extract_gau() {
-          while read domain; do
-            gau --subs $domain >> temp/gau_urls.txt 2>/dev/null
-          done < temp/live_domains.txt
-          echo "[*] GAU completed: $(wc -l < temp/gau_urls.txt 2>/dev/null || echo 0) URLs"
-        }
-        
-        extract_wayback() {
-          while read domain; do
-            echo $domain | waybackurls >> temp/wayback_urls.txt 2>/dev/null
-          done < temp/live_domains.txt
-          echo "[*] Waybackurls completed: $(wc -l < temp/wayback_urls.txt 2>/dev/null || echo 0) URLs"
-        }
-        
-        extract_gau &
-        extract_wayback &
-        
-        wait
-    
-    - name: Merge and deduplicate URLs
-      run: |
-        cat temp/gau_urls.txt temp/wayback_urls.txt 2>/dev/null | \
-        sort -u > temp/urls_raw.txt
-        echo "[*] Total unique URLs: $(wc -l < temp/urls_raw.txt)"
-    
-    - name: Filter URLs with parameters
-      run: |
-        chmod +x url-filter.sh
-        ./url-filter.sh temp/urls_raw.txt temp/param_urls.txt
-        echo "[*] URLs with parameters: $(wc -l < temp/param_urls.txt)"
-    
-    - name: Run Ghauri SQL injection scan
-      if: success() && hashFiles('temp/param_urls.txt')
-      run: |
-        if [ -s temp/param_urls.txt ]; then
-          ghauri -m temp/param_urls.txt \
-            --batch \
-            --level=3 \
-            --technique=BEUSTQ \
-            --threads=10 \
-            --delay=1 \
-            --time-sec=15 \
-            --random-agent \
-            --flush-session \
-            --output-dir=./results
-        else
-          echo "[!] No URLs with parameters found. Skipping Ghauri."
-        fi
+        chmod +x scanner.py
+        python3 scanner.py ${{ inputs.domain }}
     
     - name: Upload Ghauri results
       if: success() && hashFiles('./results/')
