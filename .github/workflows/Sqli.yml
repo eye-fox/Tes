@@ -58,8 +58,8 @@ jobs:
     
     - name: Run scanner
       run: |
-        chmod +x scanner.py
-        python3 scanner.py ${{ inputs.domain }}
+        chmod +x scanner.sh
+        ./scanner.sh ${{ inputs.domain }}
     
     - name: Upload Ghauri results
       if: success() && hashFiles('./results/')
