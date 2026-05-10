@@ -1,4 +1,4 @@
-name: Url Finder
+name: Sub Finder
 on:
   workflow_dispatch:
     inputs:
@@ -18,7 +18,6 @@ jobs:
           go-version: '1.23'
           cache: true
       
-      # Cache Go tools binaries dengan key tetap
       - name: Cache Go tools
         id: cache-go-tools
         uses: actions/cache@v4
@@ -26,20 +25,7 @@ jobs:
           path: |
             ~/go/bin
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-tools-v1  # Version key, ganti v1 jika update tools
-      
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      
-      # Cache ParamSpider
-      - name: Cache ParamSpider
-        id: cache-paramspider
-        uses: actions/cache@v4
-        with:
-          path: ParamSpider
-          key: ${{ runner.os }}-paramspider-v1  # Version key
+          key: ${{ runner.os }}-go-tools-v1
       
       - name: Install Go tools
         if: steps.cache-go-tools.outputs.cache-hit != 'true'
@@ -49,27 +35,18 @@ jobs:
           go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
           go install -v github.com/tomnomnom/assetfinder@latest
       
-      - name: Install ParamSpider
-        if: steps.cache-paramspider.outputs.cache-hit != 'true'
+      - name: Verify tools
         run: |
-          git clone https://github.com/devanshbatham/ParamSpider.git
-          cd ParamSpider
-          pip install .
-      
-      - name: Verify tools (debug)
-        run: |
-          ls -la ~/go/bin/ || echo "Bin directory empty"
-          which subfinder || echo "subfinder not in PATH"
           export PATH=$PATH:~/go/bin
-          subfinder -version || echo "subfinder not found"
+          subfinder -version
       
       - name: Run scan
         run: |
           export PATH=$PATH:~/go/bin
-          python url.py ${{ inputs.domain }}
+          python subfinder.py ${{ inputs.domain }}
       
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
-          name: filtered-urls
-          path: final_urls.txt
+          name: alive-subdomains
+          path: alive_subs.txt
