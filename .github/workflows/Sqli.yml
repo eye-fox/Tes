@@ -50,7 +50,7 @@ jobs:
           ghauri --version
 
       - name: Run SQL injection scan
-        run: python sql_injection_scanner.py ${{ inputs.domain }}
+        run: python sqli_scanner.py ${{ inputs.domain }}
         continue-on-error: true
 
       - name: Upload vulnerable URLs
