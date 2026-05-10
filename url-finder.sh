@@ -22,7 +22,7 @@ split -l 10 active_subs_raw.txt batch_
 for f in batch_*; do mv "$f" "${f}.txt"; done
 
 for file in batch_*.txt; do
-    paramspider -l $file -o paramspider_$(basename $file .txt) &
+    paramspider -l $file &
     count=$(jobs -r | wc -l)
     while [ $count -ge 5 ]; do
         sleep 1
@@ -31,7 +31,7 @@ for file in batch_*.txt; do
 done
 wait
 
-cat paramspider_*/output/*.txt 2>/dev/null | sort -u > all_urls.txt
+cat results/*.txt 2>/dev/null | sort -u > all_urls.txt
 
 cat all_urls.txt | httpx -silent -status-code -follow-redirects | grep -E '^\[200\|201\|202\|203\|204\|301\|302\|303\|307\|308\]' | awk '{print $2}' > final_urls.txt
 
