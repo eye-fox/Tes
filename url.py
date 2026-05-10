@@ -48,7 +48,7 @@ def main():
     with open("clean_subs.txt", 'w') as f:
         f.write('\n'.join(clean))
     
-    run(f"paramspider -l 'clean_subs.txt'}")
+    run(f"paramspider -l {'clean_subs.txt'}")
     
     results_dir = Path("results")
     if results_dir.exists():
