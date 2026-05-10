@@ -1,4 +1,4 @@
-name: Domain Scan
+name: URL Finder
 
 on:
   workflow_dispatch:
@@ -11,33 +11,29 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Cache tools
-        id: cache-tools
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/go/bin
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-tools
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+          cache: true
 
-      - name: Install tools
-        if: steps.cache-tools.outputs.cache-hit != 'true'
+      - name: Install Go tools
         run: |
           go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
           go install -v github.com/tomnomnom/assetfinder@latest
           go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
-          apt install paramspider
+
+      - name: Install paramspider
+        run: |
+          git clone https://github.com/devanshbatham/paramspider
+          cd paramspider
+          pip install .
 
       - name: Run scan
-        run: |
-          echo -e '#!/bin/bash\n'$(cat domainscan.sh) > url-finder.sh
-          chmod +x url-finder.sh
-          ./url-finder.sh ${{ github.event.inputs.domain }}
+        run: ./url-finder.sh ${{ github.event.inputs.domain }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
