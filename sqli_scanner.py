@@ -64,7 +64,7 @@ def run_paramspider(domain):
 
 def run_httpx(input_file, output_file):
     print(f"\n[*] Running httpx on {input_file}")
-    cmd = f"httpx -l {input_file} -o {output_file}"
+    cmd = f"httpx -l {input_file} -silent -no-color -threads 100 -rate-limit 500 -timeout 5 -retries 1 -follow-host-redirects -mc 200,201,202,203,204,301,302,307,308,401,403 -random-agent -o {output_file}"
     run_command(cmd)
     
     if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
