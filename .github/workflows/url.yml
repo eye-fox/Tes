@@ -11,27 +11,58 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.23'
           cache: true
+      
+      # Cache Go tools binaries
+      - name: Cache Go tools
+        id: cache-go-tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/bin
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-tools-${{ hashFiles('go-tools.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-go-tools-
+      
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
+      
+      # Cache ParamSpider
+      - name: Cache ParamSpider
+        id: cache-paramspider
+        uses: actions/cache@v4
+        with:
+          path: ParamSpider
+          key: ${{ runner.os }}-paramspider
+      
       - name: Install Go tools
+        if: steps.cache-go-tools.outputs.cache-hit != 'true'
         run: |
           go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
           go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
           go install -v github.com/tomnomnom/assetfinder@latest
+      
       - name: Install ParamSpider
+        if: steps.cache-paramspider.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/devanshbatham/ParamSpider.git
           cd ParamSpider
           pip install .
+      
       - name: Run scan
-        run: python url.py ${{ inputs.domain }}
+        run: |
+          export PATH=$PATH:~/go/bin
+          python url.py ${{ inputs.domain }}
+      
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
