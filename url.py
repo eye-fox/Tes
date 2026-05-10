@@ -18,19 +18,11 @@ def main():
     
     os.environ["PATH"] += os.pathsep + os.path.expanduser("~/go/bin")
     
-    run(f"subfinder -d {domain} -silent", "subfinder.txt")
-    run(f"assetfinder --subs-only {domain}", "assetfinder.txt")
-    
-    with open("subfinder.txt") as f:
-        s1 = set(f.read().splitlines())
-    with open("assetfinder.txt") as f:
-        s2 = set(f.read().splitlines())
-    all_subs = sorted(s1 | s2 | {domain})
-    with open("unique_subs.txt", 'w') as f:
-        f.write('\n'.join(all_subs))
-    
-    run(f"httpx -l {'unique_subs.txt'} -mc -o {'alive_subs.txt'}")
-    
+    run(f"subfinder -d {domain} -silent -o subfinder.txt")
+    run(f"assetfinder --subs-only {domain} -o assetfinder.txt")
+    run("cat subfinder.txt assetfinder.txt > unique_subs.txt")
+    run("sort -u unique_subs.txt")
+    run(f"httpx -l {'unique_subs.txt'} -mc -o {'alive_subs.txt'}")  
     with open("alive_subs.txt") as f:
         raw = f.read().splitlines()
     clean = []
