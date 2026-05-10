@@ -1,0 +1,40 @@
+name: Url Finder
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Target domain'
+        required: true
+        type: string
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install Go tools
+        run: |
+          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install -v github.com/tomnomnom/assetfinder@latest
+      - name: Install ParamSpider
+        run: |
+          git clone https://github.com/devanshbatham/ParamSpider.git
+          cd ParamSpider
+          pip install .
+      - name: Run scan
+        run: python url.py ${{ inputs.domain }}
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: filtered-urls
+          path: final_urls.txt
