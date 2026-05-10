@@ -1,0 +1,46 @@
+name: Domain Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Target domain'
+        required: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache tools
+        id: cache-tools
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/go/bin
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-tools
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install tools
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: |
+          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install -v github.com/tomnomnom/assetfinder@latest
+          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+          pip install paramspider
+
+      - name: Run scan
+        run: |
+          echo -e '#!/bin/bash\n'$(cat domainscan.sh) > url-finder.sh
+          chmod +x url-finder.sh
+          ./url-finder.sh ${{ github.event.inputs.domain }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: final-urls
+          path: scan_*/final_urls.txt
