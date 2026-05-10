@@ -40,7 +40,7 @@ jobs:
           ./url-finder.sh ${{ github.event.inputs.domain }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: final-urls
           path: scan_*/final_urls.txt
