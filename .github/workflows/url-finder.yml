@@ -31,7 +31,7 @@ jobs:
           go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
           go install -v github.com/tomnomnom/assetfinder@latest
           go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
-          pip install paramspider
+          apt install paramspider
 
       - name: Run scan
         run: |
