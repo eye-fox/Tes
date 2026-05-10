@@ -22,40 +22,12 @@ def main():
     run(f"assetfinder --subs-only {domain} -o assetfinder.txt")
     run("cat subfinder.txt assetfinder.txt > unique_subs.txt")
     run("sort -u unique_subs.txt")
-    run(f"httpx -l {'unique_subs.txt'} -mc -o {'alive_subs.txt'}")  
-    with open("alive_subs.txt") as f:
-        raw = f.read().splitlines()
-    clean = []
-    for line in raw:
-        line = line.strip()
-        if not line:
-            continue
-        if line.startswith("http://"):
-            line = line[7:]
-        elif line.startswith("https://"):
-            line = line[8:]
-        if line.endswith("/"):
-            line = line[:-1]
-        clean.append(line)
-    with open("clean_subs.txt", 'w') as f:
-        f.write('\n'.join(clean))
-    
-    run(f"paramspider -l {'clean_subs.txt'}")
-    
-    results_dir = Path("results")
-    if results_dir.exists():
-        with open("all_params.txt", 'w') as out_f:
-            for res_file in results_dir.glob("*.txt"):
-                with open(res_file) as in_f:
-                    out_f.write(in_f.read())
-        if ("all_params.txt").stat().st_size > 0:
-            with open("all_params.txt") as f:
-                lines = sorted(set(f.read().splitlines()))
-            with open("unique_params.txt", 'w') as f:
-                f.write('\n'.join(lines))
-            run(f"httpx -l {'unique_params.txt'} -mc -follow-redirects -o final_urls.txt")
-    
-    shutil.rmtree("results", ignore_errors=True)
+    run("httpx -l unique_subs.txt -mc -o alive_subs.txt")
+    run("sed -i 's|https\?://||g' alive_subs.txt") 
+    run("paramspider -l alive_subs.txt")
+    run("cat results/*.txt > urls.txt")
+    run("sort urls.txt | uniq > hasil.txt")
+    run("httpx -l hasil.txt -mc -follow-redirects -o final_urls.txt")
 
 if __name__ == "__main__":
     main()
