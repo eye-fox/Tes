@@ -16,7 +16,8 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.11'
+          cache: 'pip'
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -36,18 +37,20 @@ jobs:
         run: |
           git clone https://github.com/r0oth3x49/ghauri.git
           cd ghauri
+          python3 -m pip install --upgrade -r requirements.txt
           python3 setup.py install
+
+      - name: Add to PATH
+        run: echo "$HOME/go/bin" >> $GITHUB_PATH
 
       - name: Verify installations
         run: |
           paramspider --help
-          ~/go/bin/httpx -version
+          httpx -version
           ghauri --version
 
       - name: Run SQL injection scan
-        run: |
-          export PATH=$PATH:~/go/bin
-          python sqli_scanner.py ${{ inputs.domain }}
+        run: python sql_injection_scanner.py ${{ inputs.domain }}
         continue-on-error: true
 
       - name: Upload vulnerable URLs
@@ -71,7 +74,7 @@ jobs:
           path: scan_summary.json
           if-no-files-found: warn
 
-      - name: Upload all scan results (combined)
+      - name: Upload all scan results
         uses: actions/upload-artifact@v4
         if: always()
         with:
