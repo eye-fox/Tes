@@ -42,10 +42,18 @@ jobs:
           pip install .
 
       - name: Run scan
-        run: chmod +x url-finder.sh && ./url-finder.sh ${{ github.event.inputs.domain }}
+        run: |
+          subfinder -d ${{ github.event.inputs.domain }} -silent > subfinder.txt &
+          assetfinder --subs-only ${{ github.event.inputs.domain }} > assetfinder.txt &
+          wait
+          cat subfinder.txt assetfinder.txt | sort -u > all_subs.txt
+          cat all_subs.txt | httpx -silent -mc -follow-redirects > active_subs_raw.txt
+          paramspider -l active_subs_raw.txt
+          cat results/*.txt 2>/dev/null | sort -u > all_urls.txt
+          cat all_urls.txt | httpx -silent -mc -follow-redirects > final_urls.txt
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: final-urls
-          path: scan_*/final_urls.txt
+          path: final_urls.txt
