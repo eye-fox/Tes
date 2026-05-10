@@ -33,7 +33,7 @@ jobs:
           pip install .
 
       - name: Run scan
-        run: ./url-finder.sh ${{ github.event.inputs.domain }}
+        run: chmod +x url-finder.sh && ./url-finder.sh ${{ github.event.inputs.domain }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
