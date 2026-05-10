@@ -1,4 +1,4 @@
-name: SQL Injection Scanner
+name: SQL Injection Scanner - ParamSpider + httpx + Ghauri
 on:
   workflow_dispatch:
     inputs:
@@ -16,60 +16,69 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.23'
 
-      - name: Cache ParamSpider
-        id: cache-paramspider
-        uses: actions/cache@v4
-        with:
-          path: ParamSpider
-          key: ${{ runner.os }}-paramspider
-
-      - name: Install ParamSpider
-        if: steps.cache-paramspider.outputs.cache-hit != 'true'
+      - name: Install ParamSpider from GitHub
         run: |
           git clone https://github.com/devanshbatham/ParamSpider
           cd ParamSpider
           pip install .
 
-      - name: Cache httpx
-        id: cache-httpx
-        uses: actions/cache@v4
-        with:
-          path: ~/go/bin/httpx
-          key: ${{ runner.os }}-httpx
-
       - name: Install httpx
-        if: steps.cache-httpx.outputs.cache-hit != 'true'
         run: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
 
-      - name: Cache Ghauri
-        id: cache-ghauri
-        uses: actions/cache@v4
-        with:
-          path: ghauri
-          key: ${{ runner.os }}-ghauri
-
-      - name: Install Ghauri
-        if: steps.cache-ghauri.outputs.cache-hit != 'true'
+      - name: Install Ghauri from GitHub
         run: |
           git clone https://github.com/r0oth3x49/ghauri.git
           cd ghauri
-          python setup.py install
+          python3 setup.py install
 
-      - name: Run scan
+      - name: Verify installations
+        run: |
+          paramspider --help
+          ~/go/bin/httpx -version
+          ghauri --version
+
+      - name: Run SQL injection scan
         run: |
           export PATH=$PATH:~/go/bin
           python sqli_scanner.py ${{ inputs.domain }}
+        continue-on-error: true
 
-      - name: Upload results
+      - name: Upload vulnerable URLs
         uses: actions/upload-artifact@v4
         with:
-          name: scan-results-${{ inputs.domain }}
-          path: ${{ inputs.domain }}.txt
+          name: vulnerable-urls
+          path: vulnerable_urls.txt
+          if-no-files-found: warn
+
+      - name: Upload full Ghauri output
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghauri-full-output
+          path: ghauri_full_output.txt
+          if-no-files-found: warn
+
+      - name: Upload scan summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-summary
+          path: scan_summary.json
+          if-no-files-found: warn
+
+      - name: Upload all scan results (combined)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: complete-scan-results-${{ github.run_number }}
+          path: |
+            vulnerable_urls.txt
+            ghauri_full_output.txt
+            scan_summary.json
+            *.txt
           if-no-files-found: warn
